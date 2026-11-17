@@ -16,7 +16,8 @@ Cellular landuse initialisation in its base configuration
 }
 \description{
 Calculates the cellular MAgPIE landuse initialisation area. Data from FAO on forestry is used
-to split the secondary forest pool of the LUH3 dataset into forestry and secdforest. This function
+to split the secondary forest pool of the LUH3 dataset into forestry and secdforest; within a country the
+forestry area follows the planted-forest share of the cell (Lesiv et al. 2022). This function
 returns the data set in a basic configuration. Use \code{\link{calcLanduseInitialisation}} for
 more settings.
 }

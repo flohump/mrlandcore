@@ -59,6 +59,7 @@ importFrom(mrfaocore,
 )
 importFrom(mstools,
   toolConv2CountryByCelltype,
+  toolGetMappingCoord2Country,
   toolHoldConstant
 )
 importFrom(ncdf4,nc_open)
@@ -79,9 +80,12 @@ importFrom(stringr,
 importFrom(terra,
   "ext<-",
   aggregate,
+  as.data.frame,
   ext,
   project,
   rast,
+  res,
+  resample,
   subset,
   terraOptions
 )

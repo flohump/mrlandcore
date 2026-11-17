@@ -1,6 +1,7 @@
 #' @title calcLanduseInitialisationBase
 #' @description Calculates the cellular MAgPIE landuse initialisation area. Data from FAO on forestry is used
-#' to split the secondary forest pool of the LUH3 dataset into forestry and secdforest. This function
+#' to split the secondary forest pool of the LUH3 dataset into forestry and secdforest; within a country the
+#' forestry area follows the planted-forest share of the cell (Lesiv et al. 2022). This function
 #' returns the data set in a basic configuration. Use \code{\link{calcLanduseInitialisation}} for
 #' more settings.
 #'
@@ -39,6 +40,40 @@ calcLanduseInitialisationBase <- function(cells = "lpjcell", selectyears = "past
     secdf <- c("secdforest", "forestry")
     forestShares <- .expand(x = .shr(forestArea[, , secdf]), target = lu)
     lu[, , secdf] <- forestShares * lu[, , secdf]
+    return(lu)
+  }
+
+  .placePlanted <- function(lu, plantedShare) {
+    # national forestry area placed within each country by the observed planted-forest share of the cell land
+    # (Lesiv et al. 2022), capped at the cell's secondary plus planted forest; countries without mapped planted
+    # forest keep the proportional split
+    iso <- getItems(lu, dim = "iso", full = TRUE)
+    ps <- as.numeric(plantedShare[getItems(lu, dim = 1), , ])
+    ps[is.na(ps)] <- 0
+    for (y in getYears(lu)) {
+      pool <- as.numeric(lu[, y, "secdforest"]) + as.numeric(lu[, y, "forestry"])
+      forestry <- as.numeric(lu[, y, "forestry"])
+      w <- ps * as.numeric(dimSums(lu[, y, ], dim = 3))
+      for (k in unique(iso)) {
+        i <- which(iso == k)
+        total <- sum(forestry[i])
+        if (total <= 0 || sum(w[i]) <= 0) next
+        f <- rep(0, length(i))
+        rest <- total
+        for (pass in 1:10) {
+          open <- pool[i] - f
+          wk <- w[i] * (open > 1e-9)
+          if (sum(wk) <= 0 || rest <= 1e-9) break
+          add <- pmin(rest * wk / sum(wk), open)
+          f <- f + add
+          rest <- rest - sum(add)
+        }
+        if (rest > 1e-9) f <- f + rest * (pool[i] - f) / sum(pool[i] - f)
+        forestry[i] <- f
+      }
+      lu[, y, "forestry"] <- forestry
+      lu[, y, "secdforest"] <- pool - forestry
+    }
     return(lu)
   }
 
@@ -94,6 +129,8 @@ calcLanduseInitialisationBase <- function(cells = "lpjcell", selectyears = "past
   vegC <- vegC[, cyears, ]
 
   lu2 <- toolForestRelocate(lu = lu, luCountry = luCountry, natTarget = natTarget, vegC = vegC)
+  # forestry placed within each country by the observed planted-forest pattern, after the relocation of the forest total
+  lu2 <- .placePlanted(lu2, calcOutput("PlantedForestShare", aggregate = FALSE))
 
   .splitOther <- function(lu, luh) {
     # split other land in primary and secondary other land
