@@ -10,9 +10,8 @@ calcForestArea()
 List of magpie object with results on country level, weight, unit and description.
 }
 \description{
-Calculates consistent forest area and its subcategories based on
-             FAO_FRA2015 (and FAO_FRA2020 only for forest plantations)
-             and LanduseInitialisation data.
+Calculates consistent forest area and its subcategories based on FRA 2025 (primary forest of
+             countries that leave it blank in FRA 2025 from FRA 2020, else FRA 2015) and LanduseInitialisation data.
 }
 \examples{
 \dontrun{

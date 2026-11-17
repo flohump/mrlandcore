@@ -1,8 +1,7 @@
 #' @title calcForestArea
 #'
-#' @description Calculates consistent forest area and its subcategories based on
-#'              FAO_FRA2015 (and FAO_FRA2020 only for forest plantations)
-#'              and LanduseInitialisation data.
+#' @description Calculates consistent forest area and its subcategories based on FRA 2025 (primary forest of
+#'              countries that leave it blank in FRA 2025 from FRA 2020, else FRA 2015) and LanduseInitialisation data.
 #'
 #' @return List of magpie object with results on country level, weight, unit and description.
 #'
@@ -20,44 +19,42 @@ calcForestArea <- function() {
   endyear   <- as.integer(gsub("y", "", tail(histyears, 1)))
   years     <- paste0("y", seq(from = startyear, to = endyear, by = 1))
 
-  forest <- readSource("FAO_FRA2015", "fac")[, , c("Forest", "NatFor",
-                                                   "PrimFor", "NatRegFor",
-                                                   "PlantFor")]
+  # FRA 2025: total, naturally regenerating, primary and planted forest
+  fra <- readSource("FRA2025", "forest_area")
+  forest <- mbind(setNames(fra[, , "forestArea"], "Forest"),
+                  setNames(fra[, , "naturallyRegeneratingForest"], "NatFor"),
+                  setNames(fra[, , "primary"], "PrimFor"),
+                  setNames(fra[, , "naturallyRegeneratingForest"] - fra[, , "primary"], "NatRegFor"),
+                  setNames(fra[, , "plantedForest"], "PlantFor"))
 
-  # Plantation data is bit strange in FRA2015, we update this with FRA2020 data (but only till 2015)
-  # We do this because FRA2020 has stopped reporting separately on primf and secdf
-  # but we can still use data for planted forest
-
-  ## Overall FRA 2020 data
-  fra2020      <- readSource("FRA2020", "forest_area")
-
-  ## Find which year is missing in FRA2020 data (which exists in FRA2015)
-  missingYears <- setdiff(getYears(forest), getYears(fra2020))
-
-  ## Linear interpolation to missing year
-  fra2020      <- time_interpolate(dataset = fra2020,
-                                   interpolated_year = missingYears,
-                                   integrate_interpolated_years = TRUE,
-                                   extrapolation_type = "linear")
-
-  ## Replace FRA2015 planted forest data with FRA 2020 data
-  forest[, , "PlantFor"] <- fra2020[, getYears(forest), "plantedForest"]
-
-  # As planted forest data is now different, we need to update overall forest area
-  # (sum of nat.reg.forest and planted forest)
-  forest[, , "Forest"]   <- forest[, , "NatFor"] + forest[, , "PlantFor"]
+  # Primary forest of countries that leave it blank in all FRA 2025 years (the reader sets these to 0): the share of
+  # the country's most recent earlier report, FRA 2020, else FRA 2015; a reported 0 counts as a report
+  .reported <- function(src) {
+    r <- readSource(src, "forest_area_reported")[, , "primary"]
+    return(getItems(r, 1)[as.vector(dimSums(r, dim = c(2, 3))) > 0])
+  }
+  .share <- function(prim, nat) {
+    s <- collapseNames(prim) / collapseNames(nat)
+    s[!is.finite(s)] <- 0
+    return(time_interpolate(s, interpolated_year = getYears(forest), integrate_interpolated_years = TRUE,
+                            extrapolation_type = "constant")[, getYears(forest), ])
+  }
+  fra20 <- readSource("FRA2020", "forest_area")
+  fra15 <- readSource("FAO_FRA2015", "fac")[, , c("PrimFor", "NatRegFor")]
+  natFor <- collapseNames(forest[, , "NatFor"])
+  rep25 <- .reported("FRA2025")
+  rep20 <- setdiff(.reported("FRA2020"), rep25)
+  rep15 <- setdiff(getItems(forest, 1), c(rep25, rep20))
+  forest[rep20, , "PrimFor"] <- .share(fra20[rep20, , "primary"], fra20[rep20, , "naturallyRegeneratingForest"]) *
+    natFor[rep20, , ]
+  forest[rep15, , "PrimFor"] <- .share(fra15[rep15, , "PrimFor"], dimSums(fra15[rep15, , ], dim = 3)) *
+    natFor[rep15, , ]
+  forest[, , "NatRegFor"] <- setNames(natFor - collapseNames(forest[, , "PrimFor"]), "NatRegFor")
 
   forest <- time_interpolate(forest, interpolated_year = years,
                              integrate_interpolated_years = TRUE,
                              extrapolation_type = "constant")[, years, ]
-  vcat(verbosity = 3, "Forest is interpolated for missing years and held constant for the period before FAO starts")
-
-  ### fix know issues
-  forest["HND", , "PlantFor"]   <- forest["HND", , "Forest"] - forest["HND", , "NatFor"]
-  forest["IDN", , "Forest"]     <- forest["IDN", , "NatFor"] + forest["IDN", , "PlantFor"]
-  forest["FIN", , "NatRegFor"]  <- forest["FIN", , "NatFor"] - forest["FIN", , "PrimFor"]
-  forest["PSE", , "PlantFor"]   <- 2 / 3 * forest["PSE", , "Forest"]
-  forest["PSE", , "NatRegFor"]  <- 1 / 3 * forest["PSE", , "Forest"]
+  vcat(verbosity = 3, "Forest is interpolated for missing years and held constant for the period before FRA starts")
 
   ### fixing inconsistencies assuming total forest areas and shares of subcategories are reported correctly
 

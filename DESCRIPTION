@@ -30,7 +30,7 @@ Depends:
     magclass (>= 3.17),
     mrdownscale (>= 0.43.0),
     mrdrivers (>= 1.0.0),
-    mrfaocore (>= 1.0.0),
+    mrfaocore (>= 1.10.0),
     mstools (>= 0.6.0),
     R (>= 2.10.0)
 Imports:
