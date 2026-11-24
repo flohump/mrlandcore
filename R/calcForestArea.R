@@ -29,8 +29,8 @@ calcForestArea <- function() {
 
   # Primary forest of countries that leave it blank in all FRA 2025 years (the reader sets these to 0): the share of
   # the country's most recent earlier report, FRA 2020, else FRA 2015; a reported 0 counts as a report
-  .reported <- function(src) {
-    r <- readSource(src, "forest_area_reported")[, , "primary"]
+  .reported <- function(r) {
+    r <- r[, , "primary"]
     return(getItems(r, 1)[as.vector(dimSums(r, dim = c(2, 3))) > 0])
   }
   .share <- function(prim, nat) {
@@ -42,8 +42,8 @@ calcForestArea <- function() {
   fra20 <- readSource("FRA2020", "forest_area")
   fra15 <- readSource("FAO_FRA2015", "fac")[, , c("PrimFor", "NatRegFor")]
   natFor <- collapseNames(forest[, , "NatFor"])
-  rep25 <- .reported("FRA2025")
-  rep20 <- setdiff(.reported("FRA2020"), rep25)
+  rep25 <- .reported(readSource("FRA2025", "forest_area_reported"))
+  rep20 <- setdiff(.reported(readSource("FRA2020", "forest_area_reported")), rep25)
   rep15 <- setdiff(getItems(forest, 1), c(rep25, rep20))
   forest[rep20, , "PrimFor"] <- .share(fra20[rep20, , "primary"], fra20[rep20, , "naturallyRegeneratingForest"]) *
     natFor[rep20, , ]
